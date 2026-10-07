@@ -21,7 +21,7 @@ class GameEngine:
         self.player_bullets = []
         self.enemy_bullets = []
         self._shoot_cooldown = 0
-        self.enemy_fire_chance = 0.01
+        self.enemy_fire_chance = 0.001
 
         self.score = 0
         self.font = pygame.font.SysFont("Arial", 30)
@@ -53,7 +53,7 @@ class GameEngine:
         for enemy in self.enemy_grid.alive_enemies():
             if random.random() < self.enemy_fire_chance:
                 bullet_x = enemy.x + enemy.width // 2
-                self.enemy_bullets.append(Bullet(bullet_x, enemy.y + enemy.height, direction=1))
+                self.enemy_bullets.append(Bullet(bullet_x, enemy.y + enemy.height, speed=2, direction=1))
 
         for bullet in self.player_bullets:
             bullet.move()
@@ -63,18 +63,30 @@ class GameEngine:
         self.player_bullets = [b for b in self.player_bullets if not b.off_screen(self.height)]
         self.enemy_bullets = [b for b in self.enemy_bullets if not b.off_screen(self.height)]
 
-        # NOTE: this removes a bullet from player_bullets while iterating
-        # directly over that same list. Python skips the element right
-        # after a removed one, so when two enemies are hit on the same
-        # frame the second collision can be missed - the bullet appears
-        # to pass straight through. See Task 1 in the README.
-        for bullet in self.player_bullets:
-            for enemy in self.enemy_grid.alive_enemies():
-                if bullet.rect().colliderect(enemy.rect()):
-                    enemy.alive = False
-                    self.player_bullets.remove(bullet)
-                    self.score += 1
-                    break
+        # Collision: player bullets vs enemies.
+        # Build a new list of surviving bullets instead of removing from
+        # self.player_bullets while iterating over it (which skipped bullets).
+        # Each bullet destroys at most one enemy, and each enemy can only be
+        # destroyed (and scored) once.
+        # Collision: player bullets vs enemies.
+alive_enemies = self.enemy_grid.alive_enemies()
+remaining_bullets = []
+
+for bullet in self.player_bullets:
+    bullet_rect = bullet.rect()
+    hit = False
+
+    for enemy in alive_enemies:
+        if enemy.alive and bullet_rect.colliderect(enemy.rect()):
+            enemy.alive = False
+            self.score += 1
+            hit = True
+            break
+
+    if not hit:
+        remaining_bullets.append(bullet)
+
+self.player_bullets = remaining_bullets
 
         for bullet in self.enemy_bullets:
             if bullet.rect().colliderect(self.player.rect()):
