@@ -1,3 +1,4 @@
+import os
 import pygame
 import random
 from .player import Player
@@ -13,10 +14,13 @@ YELLOW = (240, 220, 80)
 
 # Difficulty settings: enemy movement speed and enemy firing chance per frame.
 DIFFICULTIES = {
-    "Easy":   {"speed": 0.05, "fire_chance": 0.004},
-    "Medium": {"speed": 1.0, "fire_chance": 0.05},   # original game values
-    "Hard":   {"speed": 2.0, "fire_chance": 0.02},
+    "Easy":   {"speed": 1.0, "fire_chance": 0.006},
+    "Medium": {"speed": 1.5, "fire_chance": 0.01},   # original game values
+    "Hard":   {"speed": 2.5, "fire_chance": 0.02},
 }
+
+# Sounds live in <project root>/sounds/
+SOUND_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "sounds")
 
 class GameEngine:
     def __init__(self, width, height):
@@ -26,7 +30,40 @@ class GameEngine:
         self.font = pygame.font.SysFont("Arial", 30)
         self.title_font = pygame.font.SysFont("Arial", 64, bold=True)
 
+        self._init_sounds()
+
         self.reset("Medium")
+
+    # ---- Sound helpers (the game keeps working if any sound is unavailable) ----
+
+    def _init_sounds(self):
+        """Load sound effects. Any sound that can't be loaded becomes None."""
+        if pygame.mixer.get_init() is None:
+            try:
+                pygame.mixer.init()
+            except pygame.error:
+                pass  # no audio device; sounds will simply be skipped
+
+        self.sound_fire = self._load_sound("fire.wav")
+        self.sound_explosion = self._load_sound("explosion.wav")
+        self.sound_game_over = self._load_sound("game_over.wav")
+
+    def _load_sound(self, filename):
+        if pygame.mixer.get_init() is None:
+            return None
+        try:
+            return pygame.mixer.Sound(os.path.join(SOUND_DIR, filename))
+        except (pygame.error, FileNotFoundError, OSError):
+            return None
+
+    def _play(self, sound):
+        if sound is not None:
+            try:
+                sound.play()
+            except pygame.error:
+                pass
+
+    # ---- Game state ----
 
     def reset(self, difficulty):
         """Start a fresh game with the chosen difficulty."""
@@ -65,6 +102,7 @@ class GameEngine:
                 bullet_x = self.player.center_x() - 2
                 self.player_bullets.append(Bullet(bullet_x, self.player.y, direction=-1))
                 self._shoot_cooldown = 15
+                self._play(self.sound_fire)
 
     def handle_input(self):
         if self.game_over:
@@ -97,6 +135,9 @@ class GameEngine:
         self.player_bullets = [b for b in self.player_bullets if not b.off_screen(self.height)]
         self.enemy_bullets = [b for b in self.enemy_bullets if not b.off_screen(self.height)]
 
+        # Remember the score so we can tell if an enemy was destroyed this frame.
+        score_before = self.score
+
         # Collision: player bullets vs enemies.
         # Build a new list of surviving bullets instead of removing from
         # self.player_bullets while iterating over it (which skipped bullets).
@@ -117,6 +158,10 @@ class GameEngine:
                 remaining_bullets.append(bullet)
         self.player_bullets = remaining_bullets
 
+        # Score went up -> at least one enemy was destroyed this frame.
+        if self.score > score_before:
+            self._play(self.sound_explosion)
+
         for bullet in self.enemy_bullets:
             if bullet.rect().colliderect(self.player.rect()):
                 self.game_over = True
@@ -124,6 +169,11 @@ class GameEngine:
 
         if self.enemy_grid.reached_bottom(self.player.y):
             self.game_over = True
+
+        # update() returns early once game_over is True, so this runs only
+        # on the single frame where the game ends.
+        if self.game_over:
+            self._play(self.sound_game_over)
 
     def render(self, screen):
         pygame.draw.rect(screen, GREEN, self.player.rect())
