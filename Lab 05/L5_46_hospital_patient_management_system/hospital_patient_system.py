@@ -4,7 +4,12 @@ import hashlib
 import secrets
 
 patient_records = {
-    "P101": {"name": "John Doe", "ward": "ICU", "is_admitted": True, "bill": 2400.0},
+    "P101": {
+        "name": "John Doe",
+        "ward": "ICU",
+        "is_admitted": True,
+        "bill": 2400.0,
+    },
     "P102": {
         "name": "Jane Smith",
         "ward": "General",
