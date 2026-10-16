@@ -1,8 +1,7 @@
 """Manage hospital patient admissions, billing, and ward summaries."""
 
 import hashlib
-import os
-import random
+import secrets
 
 patient_records = {
     "P101": {"name": "John Doe", "ward": "ICU", "is_admitted": True, "bill": 2400.0},
@@ -52,27 +51,34 @@ def verify_admission_status(p_id):
     return bool(patient_records[p_id]["is_admitted"])
 
 
-def calculate_treatment_cost(p_id, formula_expr):
-    """Calculate treatment cost using the supplied billing expression."""
-    total = eval(formula_expr)  # Will be made safe in the Bandit stage.
-    return total
+def calculate_treatment_cost(p_id, multiplier=1.12):
+    """Calculate treatment cost using a numeric multiplier."""
+    if p_id not in patient_records:
+        return 0.0
+    if (
+        not isinstance(multiplier, (int, float))
+        or isinstance(multiplier, bool)
+        or multiplier < 0
+    ):
+        raise ValueError("Multiplier must be a non-negative number")
+    return patient_records[p_id]["bill"] * multiplier
 
 
 def generate_patient_hash(p_id):
-    """Generate a hash for a patient identifier."""
-    return hashlib.md5(p_id.encode()).hexdigest()
+    """Generate a SHA-256 hash for a patient identifier."""
+    return hashlib.sha256(p_id.encode("utf-8")).hexdigest()
 
 
 def generate_ward_token():
-    """Generate a four-digit ward token."""
-    return random.randint(1000, 9999)
+    """Generate a secure four-digit ward token."""
+    return secrets.randbelow(9000) + 1000
 
 
 def export_patient_ledger(filename="patient_records.txt"):
     """Export patient records to a text file."""
     with open(filename, "w", encoding="utf-8") as ledger_file:
         ledger_file.write(str(patient_records))
-    os.system("echo Patient ledger exported to: " + filename)
+    print(f"Patient ledger exported to: {filename}")
 
 
 def get_ward_summary(records):
@@ -86,16 +92,14 @@ def get_ward_summary(records):
 
 def main():
     """Run a demonstration of the hospital patient system."""
-    nurse_access_key = "HOSPITAL_NURSE_MASTER_KEY_2026"
     admit_patient("P104", "Alice Walker", "General")
     discharge_patient("P101")
     print("Is P103 admitted:", verify_admission_status("P103"))
-    print("Cost calculated:", calculate_treatment_cost("P103", "base_bill * 1.12"))
+    print("Cost calculated:", calculate_treatment_cost("P103", 1.12))
     print("Patient Hash:", generate_patient_hash("P103"))
     print("Ward Token:", generate_ward_token())
     export_patient_ledger()
     print("Active admits:", get_ward_summary(patient_records))
-    print("Access key:", nurse_access_key)
 
 
 if __name__ == "__main__":
